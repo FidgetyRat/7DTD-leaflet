@@ -26,7 +26,7 @@ import sys
 import os
 import time
 import sqlite3
-__version__ = "1.3.4-dev"
+__version__ = "1.4.0-dev"
 
 print("Welcome to 7DTD leaflet builder version " + __version__)
 
@@ -153,7 +153,117 @@ class MapReader:
         self.db.commit()
 
 
-def create_tiles(player_map_path, tile_output_path, tile_level, store_history):
+class TTPReader:
+    def __init__(self):
+        """
+            Read data from a .ttp player data file.
+        """
+        self.player_pos = [0,0,0];
+        self.player_name = 'UNKNOWN'
+        self.steam_id = 0
+        self.poi = []
+        pass
+
+    def load(self, file_path):
+        with open(file_path, "rb") as curs:
+            # Check beginning of file
+            header_magic = curs.read(4).decode('UTF-8')
+            if not header_magic.startswith("ttp"):
+                print("Skip " + os.path.basename(file_path) + " wrong file header")
+                return
+          
+            # Default the player name to the steam ID.
+            self.steam_id = os.path.splitext(os.path.basename(file_path))[0]
+            self.player_name = self.steam_id
+
+            # Read version
+            version = struct.unpack("B", curs.read(1))[0]
+
+            # Has been written for this ttp version
+            if version != 36:
+                print("Skip " + os.path.basename(file_path) + " not supported file version")
+                return False
+            
+            # Parse some basic entity data in order to locate and read the
+            # player position values.
+            entity_version = struct.unpack("B", curs.read(1))[0]
+            entity_class = struct.unpack("I", curs.read(4))[0]
+            entity_id = struct.unpack("f", curs.read(4))[0]
+            lifetime = struct.unpack("i", curs.read(4))[0]
+            self.player_pos = [struct.unpack("f", curs.read(4))[0],
+                               struct.unpack("f", curs.read(4))[0],
+                               struct.unpack("f", curs.read(4))[0]]
+
+            # Find the end of the player name portion. A bit sloppy but avoids
+            # having to read all bytes leading up to this section. This works
+            # by locating a constant byte pattern after the player name and
+            # working backwards.
+            remainder = curs.read()
+            index = remainder.find(b'\x00\x01\x04')
+            if index > -1:
+                for start_index in range(index, 0, -1):
+                    if remainder[start_index] == b'\00' and remainder[start_index - 1] == b'\00':
+                        start_index = start_index + 2;
+                        raw_size_bytes = remainder[start_index - 4 : start_index]
+                        name_len = struct.unpack(">I", raw_size_bytes)[0];
+                        self.player_name = remainder[start_index : start_index + name_len].decode('utf-8')
+                        break
+
+            # The following section searches for POI blocks. Most of the POIs
+            # use the format "ui_game_symbol_map_" whereas the "X" uses
+            # ui_game_symbol_x. Replace with the map version to ease processing
+            # below.
+            remainder = remainder.replace(b"\x10ui_game_symbol_x", b"\x14ui_game_symbol_map_x")
+
+            # Start by looping to locate waypoint blocks. If a block is not
+            # found the loop terminates.
+            poi_start_index = 0
+            poi_number = 0
+            while True: 
+                # Locate any POI entries within the file. These will include POI
+                # images that all begin with "ui_game_symbol_map_<xxxx>"
+                # or in the case of the "X", ui_game_symbol_x"
+                poi_start_index = remainder.find("ui_game_symbol_map_", poi_start_index)
+                if poi_start_index == -1:
+                    break
+
+                # one byte previous holds the length of the name.
+                poi_start_index = poi_start_index - 1
+                poi_name_size = struct.unpack("B", remainder[poi_start_index])[0];
+                poi_file_name = remainder[poi_start_index + 1 : poi_start_index + 1 + poi_name_size].decode('utf-8')
+                # Extract just the name of the symbol i.e: fortress, house, etc.
+                poi_file_name = poi_file_name.rsplit('_', 1)[1]
+
+                # Extract the POI description.
+                poi_desc_start = poi_start_index + poi_name_size + 1
+                poi_desc_len = struct.unpack("B", remainder[poi_desc_start])[0]
+                poi_description = remainder[poi_desc_start + 1 : poi_desc_start + poi_desc_len + 1].decode('utf-8')
+
+                # Extract a subset of the POI's bytes that preceed the image name,
+                # these will be the vector coordinates.
+                pos_start = poi_start_index -12 
+                poi_pos = [struct.unpack("i", remainder[pos_start : pos_start + 4])[0],
+                           struct.unpack("i", remainder[pos_start + 4 : pos_start + 8])[0],
+                           struct.unpack("i", remainder[pos_start + 8 : pos_start + 12])[0]]
+                poi_start_index = poi_desc_start
+                
+                # Set the POI information.
+                self.poi.append([poi_file_name, poi_description, poi_pos])
+                poi_number = poi_number + 1
+
+    def get_player_pos(self):
+        return self.player_pos
+
+    def get_player_name(self):
+        return self.player_name
+
+    def get_player_steam_id(self):
+        return self.steam_id
+
+    def get_points_of_interest(self):
+        return self.poi
+
+def create_tiles(player_map_path, player_ttp_path, tile_output_path, tile_level, store_history):
     """
      Call base tile and intermediate zoom tiles
     """
@@ -161,6 +271,10 @@ def create_tiles(player_map_path, tile_output_path, tile_level, store_history):
         os.mkdir(tile_output_path)
     create_base_tiles(player_map_path, tile_output_path, tile_level, store_history)
     create_low_zoom_tiles(tile_output_path, tile_level)
+    
+    # Don't store player positions if history is not enabled.
+    if store_history:
+        create_player_data(player_ttp_path, tile_output_path)
 
 
 def create_base_tiles(player_map_path, tile_output_path, tile_level, store_history):
@@ -296,14 +410,17 @@ def create_low_zoom_tiles(tile_output_path, tile_level_native):
 
 def read_folder(path):
     map_files = [os.path.join(path, file_name) for file_name in os.listdir(path) if file_name.endswith(".map")]
+    ttp_files = [os.path.join(path, file_name) for file_name in os.listdir(path) if file_name.endswith(".ttp")]
     map_files.sort(key=lambda file_path: -os.stat(file_path).st_mtime)
-    return map_files
+    ttp_files.sort(key=lambda file_path: -os.stat(file_path).st_mtime)
+    return map_files, ttp_files
 
 
 def usage():
     print("This program extract and merge map tiles of all players.Then write it in a folder with verious zoom"
           " levels. In order to hide player bases, this program keep only the oldest version of each tile by default.")
     print("Usage:")
+    print(" -p :\t\t\t\t Only generate player locations and POI location data files.")
     print(" -g \"C:\\Users..\":\t The folder that contain .map files")
     print(" -t \"tiles\":\t\t The folder that will contain tiles (Optional)")
     print(" -z 8:\t\t\t\t Zoom level 4-n. Number of tiles to extract around position 0,0 of map."
@@ -318,9 +435,10 @@ def main():
     tile_path = "tiles"
     tile_zoom = 8
     store_history = False
+    poi_mode = False
     # parse command line options
     try:
-        for opt, value in getopt.getopt(sys.argv[1:], "g:t:z:n")[0]:
+        for opt, value in getopt.getopt(sys.argv[1:], "g:t:z:n:p")[0]:
             if opt == "-g":
                 game_player_path = value
             elif opt == "-t":
@@ -330,6 +448,9 @@ def main():
             elif opt == "-n":
                 store_history = True
                 print("Store all version of tiles, may take huge disk space")
+            elif opt == "-p":
+                poi_mode = True
+                print("Generating player data files.")
     except getopt.error as msg:
         usage()
         exit(-1)
@@ -350,11 +471,40 @@ def main():
     if len(game_player_path) == 0:
         print("You must define the .map game path")
         exit(-1)
-    map_files = read_folder(game_player_path)
+    map_files, ttp_files = read_folder(game_player_path)
     if len(map_files) == 0:
         print("No .map files found in ", game_player_path)
         exit(-1)
-    create_tiles(map_files, tile_path, tile_zoom, store_history)
+
+    if poi_mode != True:
+        create_tiles(map_files, ttp_files, tile_path, tile_zoom, store_history)
+    create_player_data(ttp_files, tile_path)
+
+def create_player_data(player_ttp_path, tile_output_path):
+    """
+    Read .ttp player files to extract the last known player position and player created waypoints.
+    Write this data to .csv for use by the leaflet javascript.
+    """
+    player_file = open(tile_output_path + "/PlayerPos.csv", "w")
+    poi_file = open(tile_output_path + "/POI.csv", "w")
+    last = len(player_ttp_path) - 1
+    for i, ttp_file in enumerate(player_ttp_path):
+        reader = TTPReader()
+        reader.load(ttp_file);
+        player_file.write(reader.get_player_steam_id() + "," + reader.get_player_name() + "," + 
+                          str(reader.get_player_pos()[0]) + "," + str(reader.get_player_pos()[2]))
+        if i != last:
+            player_file.write("\n");
+
+        poi_list = reader.get_points_of_interest()
+        last_poi = len(poi_list) - 1
+        for poi in poi_list:
+            poi_file.write(poi[0] + "," + poi[1] + "," + str(poi[2][0]) + "," + str(poi[2][2]) + "," + reader.get_player_name())
+            if poi != last:
+                poi_file.write("\n");
+    
+    player_file.close()
+    poi_file.close()
 
 if __name__ == "__main__":
     main()

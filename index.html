@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ketchu Free Party map</title>
+    <title>7 Days To Die Map</title>
     <meta charset="utf-8"/>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -24,6 +24,91 @@
 <script src='js/L.Control.MousePosition.js'></script>
 <script>
 native_zoom_level = 8;
+
+var iconSize = [37, 54];
+var anchorIcon = [18, 54];
+var shadowSize = [32, 21];
+var anchorShadow = [0, 21];
+var playerIcons = [];
+playerIcons.push(
+		L.icon({
+	   		iconUrl: './images/player-blue.png',
+	  		iconSize: iconSize,
+			iconAnchor: anchorIcon,
+   	 		shadowUrl: './images/shadow.png',
+   	 		shadowSize: shadowSize,
+			shadowAnchor: anchorShadow
+		}));
+playerIcons.push(
+		L.icon({
+	   		iconUrl: './images/player-green.png',
+	  		iconSize: iconSize,
+			iconAnchor: anchorIcon,
+            shadowUrl: './images/shadow.png',
+            shadowSize: shadowSize,
+            shadowAnchor: anchorShadow
+		}));
+playerIcons.push(
+		L.icon({
+	   		iconUrl: './images/player-yellow.png',
+	  		iconSize: iconSize,
+			iconAnchor: anchorIcon,
+            shadowUrl: './images/shadow.png',
+            shadowSize: shadowSize,
+            shadowAnchor: anchorShadow
+		
+		}));
+playerIcons.push(
+		L.icon({
+	   		iconUrl: './images/player-red.png',
+	  		iconSize: iconSize,
+			iconAnchor: anchorIcon,
+            shadowUrl: './images/shadow.png',
+            shadowSize: shadowSize,
+            shadowAnchor: anchorShadow
+		}));
+playerIcons.push(
+		L.icon({
+	   		iconUrl: './images/player-orange.png',
+	  		iconSize: iconSize,
+			iconAnchor: anchorIcon,
+            shadowUrl: './images/shadow.png',
+            shadowSize: shadowSize,
+            shadowAnchor: anchorShadow
+		}));
+playerIcons.push(
+		L.icon({
+	   		iconUrl: './images/player-purple.png',
+	  		iconSize: iconSize,
+			iconAnchor: anchorIcon,
+            shadowUrl: './images/shadow.png',
+            shadowSize: shadowSize,
+            shadowAnchor: anchorShadow
+		}));
+playerIcons.push(
+		L.icon({
+	   		iconUrl: './images/player-teal.png',
+	  		iconSize: iconSize,
+			iconAnchor: anchorIcon,
+            shadowUrl: './images/shadow.png',
+            shadowSize: shadowSize,
+            shadowAnchor: anchorShadow
+		}));
+var locationIcons = {};
+var validLocations = ['fortress', 'cave', 'cabin', 'campsite', 'city', 'civil', 'house', 'town', 'trader', 'x'];
+for(var index = 0; index < validLocations.length; index++)
+{
+    var loc = validLocations[index];
+    locationIcons[loc] = 
+    		L.icon({
+    	   		iconUrl: './images/' + loc + '.png',
+    	  		iconSize: iconSize,
+    			iconAnchor: anchorIcon,
+                shadowUrl: './images/shadow.png',
+                shadowSize: shadowSize,
+                shadowAnchor: anchorShadow
+    		});
+}
 
 // Apply Alloc's coordinate transformation
 // http://7daystodie.com/forums/member.php?45-Alloc
@@ -50,7 +135,6 @@ myCRS = L.extend({}, L.CRS.Simple, {
     crs: myCRS
 }).setView([0, 0], native_zoom_level / 2);
     var layers = document.getElementById('menu-ui');
-
 
     L.tileLayer('tiles/{z}/{x}/{y}.png', {maxNativeZoom : native_zoom_level, continuousWorld: 'false', attribution: '©The Fun Pimps'}).addTo(map);
 
@@ -109,6 +193,8 @@ myCRS = L.extend({}, L.CRS.Simple, {
 
     addLayer(canvasTiles, 'Region tiles', 2, false);
 
+    setPlayerLocations();
+    setLocations();
 
     function addLayer(layer, name, zIndex, active) {
         if(active) {
@@ -137,6 +223,45 @@ myCRS = L.extend({}, L.CRS.Simple, {
         };
 
         layers.appendChild(link);
+    }
+
+    function setPlayerLocations() {
+        var data = [];
+        if (window.XMLHttpRequest) {// code for IE7+, Firefox, Chrome, Opera, Safari
+               xmlhttp=new XMLHttpRequest();
+        } else {// code for IE6, IE5
+               xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        xmlhttp.open("GET", "./tiles/PlayerPos.csv", false);
+        xmlhttp.send();
+        var csvDoc = xmlhttp.responseText.trim();
+        var players = csvDoc.split("\n");
+        for(var i = 0; i < players.length; i++)
+        {
+            var player_data = players[i].split(",");
+			var iconIndex = i - (Math.floor(i / playerIcons.length) * playerIcons.length);
+            L.marker([player_data[3], player_data[2]], {icon: playerIcons[iconIndex], title: player_data[1]}).addTo(map);
+        }
+    }
+
+    function setLocations() {
+        var data = [];
+        if (window.XMLHttpRequest) {// code for IE7+, Firefox, Chrome, Opera, Safari
+               xmlhttp=new XMLHttpRequest();
+        } else {// code for IE6, IE5
+               xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+        }
+        xmlhttp.open("GET", "./tiles/POI.csv", false);
+        xmlhttp.send();
+        var csvDoc = xmlhttp.responseText.trim();
+        var poi = csvDoc.split("\n");
+        for(var i = 0; i < poi.length; i++)
+        {
+            var poi_data = poi[i].split(",");
+            console.log("Trying: " + poi_data[0])
+            L.marker([poi_data[3], poi_data[2]], {icon: locationIcons[poi_data[0]], title: poi_data[1]}).addTo(map).
+                bindPopup("<b>" + poi_data[1] + "</b><br>" + poi_data[4]);
+        }
     }
 </script>
 </body>
