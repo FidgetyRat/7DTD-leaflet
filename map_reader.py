@@ -202,7 +202,7 @@ class TTPReader:
             index = remainder.find(b'\x00\x01\x04')
             if index > -1:
                 for start_index in range(index, 0, -1):
-                    if remainder[start_index] == b'\00' and remainder[start_index - 1] == b'\00':
+                    if remainder[start_index] == b'\x00' and remainder[start_index - 1] == b'\x00':
                         start_index = start_index + 2;
                         raw_size_bytes = remainder[start_index - 4 : start_index]
                         name_len = struct.unpack(">I", raw_size_bytes)[0];
@@ -438,7 +438,7 @@ def main():
     poi_mode = False
     # parse command line options
     try:
-        for opt, value in getopt.getopt(sys.argv[1:], "g:t:z:n:p")[0]:
+        for opt, value in getopt.getopt(sys.argv[1:], "g:t:z:np")[0]:
             if opt == "-g":
                 game_player_path = value
             elif opt == "-t":
@@ -472,11 +472,10 @@ def main():
         print("You must define the .map game path")
         exit(-1)
     map_files, ttp_files = read_folder(game_player_path)
-    if len(map_files) == 0:
-        print("No .map files found in ", game_player_path)
-        exit(-1)
-
     if poi_mode != True:
+        if len(map_files) == 0:
+            print("No .map files found in ", game_player_path)
+            exit(-1)
         create_tiles(map_files, ttp_files, tile_path, tile_zoom, store_history)
     create_player_data(ttp_files, tile_path)
 

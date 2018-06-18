@@ -15,7 +15,6 @@
 </style>
 </head>
 <body>
-<style>#forkongithub a{background:#000;color:#fff;text-decoration:none;font-family:arial,sans-serif;text-align:center;font-weight:bold;padding:5px 40px;font-size:1rem;line-height:2rem;position:relative;transition:0.5s;}#forkongithub a:hover{background:#c11;color:#fff;}#forkongithub a::before,#forkongithub a::after{content:"";width:100%;display:block;position:absolute;top:1px;left:0;height:1px;background:#fff;}#forkongithub a::after{bottom:1px;top:auto;}@media screen and (min-width:800px){#forkongithub{position:absolute;display:block;top:0;right:0;width:200px;overflow:hidden;height:200px;z-index:9999;}#forkongithub a{width:200px;position:absolute;top:60px;right:-60px;transform:rotate(45deg);-webkit-transform:rotate(45deg);-ms-transform:rotate(45deg);-moz-transform:rotate(45deg);-o-transform:rotate(45deg);box-shadow:4px 4px 10px rgba(0,0,0,0.8);}}</style><span id="forkongithub"><a href="https://github.com/nicolas-f/7DTD-leaflet">Fork me on GitHub</a></span>
 <nav id='menu-ui' class='menu-ui'></nav>
 <div id="map"></div>
 
@@ -192,9 +191,12 @@ myCRS = L.extend({}, L.CRS.Simple, {
     };
 
     addLayer(canvasTiles, 'Region tiles', 2, false);
-
-    setPlayerLocations();
-    setLocations();
+  
+    //Add the location overlays.
+    overlays = addPOILocationOverlays();
+    overlays['Players'] = addPlayerLocationOverlay();
+    L.control.layers(null, overlays).addTo(map);
+    
 
     function addLayer(layer, name, zIndex, active) {
         if(active) {
@@ -225,7 +227,7 @@ myCRS = L.extend({}, L.CRS.Simple, {
         layers.appendChild(link);
     }
 
-    function setPlayerLocations() {
+    function addPlayerLocationOverlay() {
         var data = [];
         if (window.XMLHttpRequest) {// code for IE7+, Firefox, Chrome, Opera, Safari
                xmlhttp=new XMLHttpRequest();
@@ -236,15 +238,19 @@ myCRS = L.extend({}, L.CRS.Simple, {
         xmlhttp.send();
         var csvDoc = xmlhttp.responseText.trim();
         var players = csvDoc.split("\n");
+        var playerLayer = L.layerGroup().addTo(map);
         for(var i = 0; i < players.length; i++)
         {
             var player_data = players[i].split(",");
 			var iconIndex = i - (Math.floor(i / playerIcons.length) * playerIcons.length);
-            L.marker([player_data[3], player_data[2]], {icon: playerIcons[iconIndex], title: player_data[1]}).addTo(map);
+            var marker = L.marker([player_data[3], player_data[2]], {icon: playerIcons[iconIndex]}).
+                bindPopup("<b>" + player_data[1] + "</b><br>" + player_data[0]);
+            playerLayer.addLayer(marker);
         }
+        return playerLayer;
     }
 
-    function setLocations() {
+    function addPOILocationOverlays() {
         var data = [];
         if (window.XMLHttpRequest) {// code for IE7+, Firefox, Chrome, Opera, Safari
                xmlhttp=new XMLHttpRequest();
@@ -255,13 +261,26 @@ myCRS = L.extend({}, L.CRS.Simple, {
         xmlhttp.send();
         var csvDoc = xmlhttp.responseText.trim();
         var poi = csvDoc.split("\n");
+       
+        // Build a mapping of valid location groups.
+        var locationGroups = [];
+        var poiOverlays = [];
+        for(var index = 0; index < validLocations.length; index++)
+        {
+            var loc = validLocations[index];
+            locationGroups[loc] = L.layerGroup().addTo(map);
+            poiOverlays[loc.charAt(0).toUpperCase() + loc.slice(1)] = locationGroups[loc];
+        }
+               
+        // Populate the groups.    
         for(var i = 0; i < poi.length; i++)
         {
             var poi_data = poi[i].split(",");
-            console.log("Trying: " + poi_data[0])
-            L.marker([poi_data[3], poi_data[2]], {icon: locationIcons[poi_data[0]], title: poi_data[1]}).addTo(map).
+            var marker = L.marker([poi_data[3], poi_data[2]], {icon: locationIcons[poi_data[0]]}).
                 bindPopup("<b>" + poi_data[1] + "</b><br>" + poi_data[4]);
+            locationGroups[poi_data[0]].addLayer(marker);
         }
+        return poiOverlays;
     }
 </script>
 </body>
