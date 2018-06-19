@@ -26,7 +26,11 @@ import sys
 import os
 import time
 import sqlite3
+import telnetlib
 __version__ = "1.4.0-dev"
+
+# A useful function for converting to hex string.
+toHex = lambda x:"".join([hex(ord(c))[2:].zfill(2) for c in x])
 
 print("Welcome to 7DTD leaflet builder version " + __version__)
 
@@ -201,11 +205,11 @@ class TTPReader:
             remainder = curs.read()
             index = remainder.find(b'\x00\x01\x04')
             if index > -1:
-                for start_index in range(index, 0, -1):
-                    if remainder[start_index] == b'\x00' and remainder[start_index - 1] == b'\x00':
-                        start_index = start_index + 2;
-                        raw_size_bytes = remainder[start_index - 4 : start_index]
-                        name_len = struct.unpack(">I", raw_size_bytes)[0];
+                for start_index in range(index - 1, 0, -1):
+                    if remainder[start_index] == b'\x00':
+                        raw_size_bytes = remainder[start_index : start_index + 2]
+                        name_len = struct.unpack(">h", raw_size_bytes)[0]
+                        start_index = start_index + 2
                         self.player_name = remainder[start_index : start_index + name_len].decode('utf-8')
                         break
 
@@ -420,14 +424,14 @@ def usage():
     print("This program extract and merge map tiles of all players.Then write it in a folder with verious zoom"
           " levels. In order to hide player bases, this program keep only the oldest version of each tile by default.")
     print("Usage:")
-    print(" -p :\t\t\t\t Only generate player locations and POI location data files.")
-    print(" -g \"C:\\Users..\":\t The folder that contain .map files")
-    print(" -t \"tiles\":\t\t The folder that will contain tiles (Optional)")
-    print(" -z 8:\t\t\t\t Zoom level 4-n. Number of tiles to extract around position 0,0 of map."
+    print(" -d :\t\t\t\tRetrieve the current server date & time via telnet.")
+    print(" -p :\t\t\t\tOnly generate player locations and POI location data files.")
+    print(" -g \"C:\\Users..\":\tThe folder that contain .map files")
+    print(" -t \"tiles\":\tThe folder that will contain tiles (Optional)")
+    print(" -z 8:\t\t\t\tZoom level 4-n. Number of tiles to extract around position 0,0 of map."
           " It is in the form of 4^n tiles.It will extract a grid of 2^n*16 tiles on each side.(Optional)")
-    print(
-        "-n :\t\t\t\t Keep track of updates and write the last version of tiles. This will show players bases on "
-        "map.(Optional)")
+    print(" -n :\t\t\t\tKeep track of updates and write the last version of tiles. This will show players bases on "
+          "map.(Optional)")
 
 
 def main():
@@ -436,9 +440,10 @@ def main():
     tile_zoom = 8
     store_history = False
     poi_mode = False
+    date_time = False
     # parse command line options
     try:
-        for opt, value in getopt.getopt(sys.argv[1:], "g:t:z:np")[0]:
+        for opt, value in getopt.getopt(sys.argv[1:], "g:t:z:npd")[0]:
             if opt == "-g":
                 game_player_path = value
             elif opt == "-t":
@@ -447,13 +452,18 @@ def main():
                 tile_zoom = int(value)
             elif opt == "-n":
                 store_history = True
-                print("Store all version of tiles, may take huge disk space")
+                print("Store all version of tiles, may take huge disk space.")
             elif opt == "-p":
                 poi_mode = True
                 print("Generating player data files.")
+            elif opt == "-d":
+                date_time = True
+                print("Retrieving game date & time via telnet.")
     except getopt.error as msg:
         usage()
         exit(-1)
+    if date_time:
+        write_game_time(tile_path, "127.0.0.1", 8081)
     if game_player_path is None:
         # Show gui to select tile folder
         try:
@@ -504,6 +514,24 @@ def create_player_data(player_ttp_path, tile_output_path):
     
     player_file.close()
     poi_file.close()
+
+def write_game_time(tile_output_path, host, port):
+    """
+    Connects to the game server over telnet and acquires the current game time.
+    """
+    print("Establishing connection to server via telnet.")
+    telnet = telnetlib.Telnet(host, port)
+    telnet.read_until("Press 'help' to get a list of all commands. Press 'exit' to end session.")
+    telnet.write("gt".encode('ascii') + b"\r\n")
+    telnet.read_until("Day")
+    dateString = telnet.read_eager().strip()
+    dateString = dateString.replace(" ", "")
+    dateString = dateString.replace(":", ",")
+    telnet.write("exit".encode('ascii') + b"\r\n")
+
+    date_file = open(tile_output_path + "/DateTime.csv", "w")
+    date_file.write(dateString)
+    date_file.close()
 
 if __name__ == "__main__":
     main()

@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="css/leaflet.css"/>
     <link rel="stylesheet" href="css/L.Control.MousePosition.css"/>
     <link rel="stylesheet" href="css/toggle.css"/>
+    <link rel="stylesheet" href="css/date-time.css"/>
     <style>
   body { margin:0; padding:0; }
   #map { position:absolute; top:0; bottom:0; width:100%; }
@@ -16,8 +17,8 @@
 </head>
 <body>
 <nav id='menu-ui' class='menu-ui'></nav>
-<div id="map"></div>
-
+<div id="map" />
+<div id="date-time-container" />
 <script src="js/leaflet.js"></script>
 <script src='js/leaflet-omnivore.min.js'></script>
 <script src='js/L.Control.MousePosition.js'></script>
@@ -149,6 +150,11 @@ myCRS = L.extend({}, L.CRS.Simple, {
     }
     }).addTo(map);
 
+    // Add the container for the server date and time.
+    var mapControlsContainer = document.getElementsByClassName("leaflet-control")[0];
+    var dateTimeContainer = document.getElementById("date-time-container");
+    mapControlsContainer.appendChild(dateTimeContainer);
+
     // Add overlay region tiles rectangles and text
     var canvasTiles = L.tileLayer.canvas({continuousWorld: 'false'});
     canvasTiles.drawTile = function(canvas, tilePoint, zoom) {
@@ -190,13 +196,15 @@ myCRS = L.extend({}, L.CRS.Simple, {
         }
     };
 
+    // Add the server time overlay.
+    addServerTimeOverlay();
+
     addLayer(canvasTiles, 'Region tiles', 2, false);
   
-    //Add the location overlays.
+    // Add the location overlays.
     overlays = addPOILocationOverlays();
     overlays['Players'] = addPlayerLocationOverlay();
     L.control.layers(null, overlays).addTo(map);
-    
 
     function addLayer(layer, name, zIndex, active) {
         if(active) {
@@ -281,6 +289,22 @@ myCRS = L.extend({}, L.CRS.Simple, {
             locationGroups[poi_data[0]].addLayer(marker);
         }
         return poiOverlays;
+    }
+
+
+    function addServerTimeOverlay() {
+        fetch("./tiles/DateTime.csv").then(function(response){
+            return response.text();
+        }).then(function(text){
+            var date_time_data = text.trim().split(",");
+            var dateTimeString = "<div id=\"date-time-title\">Server Time</div>" + 
+                                 "<div id=\"date-time-day\"> Day: " + date_time_data[0] + "</div>" + 
+                                 "<div id=\"date-time-time\"> Time: " + date_time_data[1] + ":" + date_time_data[2] + "</div><br/>" +
+                                 "<div id=\"date-time-moon-days\">" + (7 - Math.floor(date_time_data[0] % 7)) + " days until blood moon.</div>";
+            document.getElementById("date-time-container").innerHTML = dateTimeString;
+        }).catch(function(err){
+            // Error handling goes here (e.g. the network request failed, etc)
+        })
     }
 </script>
 </body>

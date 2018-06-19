@@ -1,0 +1,31 @@
+#date-time-container {
+  position: absolute;
+  z-index: 100;
+  top: 0;
+  left: 50px;
+  background-color: white;
+  width: 175px;
+  height: 75px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+  border-radius: 4px;
+}
+
+div #date-time-title {
+  text-align: center;
+  font-size: large;
+}
+
+div #date-time-day {
+  display: inline;
+  font-size: large;
+}
+
+div #date-time-time {
+  display: inline;
+  font-size: large;
+}
+
+div #date-time-moon-days {
+  text-align: center;
+  font-size: small;
+}
