@@ -496,8 +496,10 @@ def create_player_data(player_ttp_path, tile_output_path):
     """
     player_file = open(tile_output_path + "/PlayerPos.csv", "w")
     poi_file = open(tile_output_path + "/POI.csv", "w")
-    last = len(player_ttp_path) - 1
-    for i, ttp_file in enumerate(player_ttp_path):
+    last = len(player_ttp_path)
+    # Loop over the player files, but first sort them to keep the order
+    # consistent.
+    for i, ttp_file in sorted(enumerate(player_ttp_path), key=lambda x:x[1]):
         reader = TTPReader()
         reader.load(ttp_file);
         player_file.write(reader.get_player_steam_id() + "," + reader.get_player_name() + "," + 
