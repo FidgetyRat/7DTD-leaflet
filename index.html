@@ -309,6 +309,10 @@ myCRS = L.extend({}, L.CRS.Simple, {
         xmlhttp.open("GET", "./tiles/POI.csv", false);
         xmlhttp.send();
         var csvDoc = xmlhttp.responseText.trim();
+        if(csvDoc === "")
+        {
+            return [];
+        }
         var poi = csvDoc.split("\n");
        
         // Build a mapping of valid location groups.
@@ -337,15 +341,16 @@ myCRS = L.extend({}, L.CRS.Simple, {
         fetch("./tiles/DateTime.csv").then(function(response){
             return response.text();
         }).then(function(text){
+            var bloodMoonDays = 7;
             var date_time_data = text.trim().split(",");
-            var moonDayDelta = (7 - Math.floor(date_time_data[0] % 7));
+            var moonDayDelta = (bloodMoonDays - Math.floor(date_time_data[0] % bloodMoonDays));
             var hourDelta = 0;
             var bloodMoon = false;
-            if (moonDayDelta == 6)
+            if (moonDayDelta == bloodMoonDays - 1)
             {
                 hourDelta = 4 - date_time_data[1];
             }
-            else if (moonDayDelta == 7)
+            else if (moonDayDelta == bloodMoonDays)
             {
                 moonDayDelta = 0;
                 hourDelta = 22 - date_time_data[1];
@@ -355,7 +360,7 @@ myCRS = L.extend({}, L.CRS.Simple, {
                 hourDelta = 22 - date_time_data[1];
             }
 
-            if((moonDayDelta == 0 && hourDelta <= 0) || (moonDayDelta == 6 && hourDelta > 0))
+            if((moonDayDelta == 0 && hourDelta <= 0) || (moonDayDelta == bloodMoonDays-1 && hourDelta > 0))
             {
                 bloodMoon = true;
             }

@@ -184,8 +184,8 @@ class TTPReader:
             version = struct.unpack("B", curs.read(1))[0]
 
             # Has been written for this ttp version
-            if version != 36:
-                print("Skip " + os.path.basename(file_path) + " not supported file version")
+            if version != 48:
+                print("Skip " + os.path.basename(file_path) + "; v" + str(version) + " is not supported")
                 return False
             
             # Parse some basic entity data in order to locate and read the
@@ -203,7 +203,7 @@ class TTPReader:
             # by locating a constant byte pattern after the player name and
             # working backwards.
             remainder = curs.read()
-            index = remainder.find(b'\x00\x01\x04')
+            index = remainder.find(b'\x00\x01\x05')
             if index > -1:
                 for start_index in range(index - 1, 0, -1):
                     if remainder[start_index] == b'\x00':
