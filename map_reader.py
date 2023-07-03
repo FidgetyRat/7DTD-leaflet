@@ -184,7 +184,7 @@ class TTPReader:
             version = struct.unpack("B", curs.read(1))[0]
 
             # Has been written for this ttp version
-            if version != 48:
+            if version != 52:
                 print("Skip " + os.path.basename(file_path) + "; v" + str(version) + " is not supported")
                 return False
             
